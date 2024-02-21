@@ -10,7 +10,3 @@ This project was conducted using R markdown in R Studio and included a multiface
 1.    Code used to execute the analysis.
 2.    Output for the code executed.
 3.    Interpretation of the results obtained.
-
-# Setting the Chunk options
-
-First, the options of interest on the output of all the chunks was set.
