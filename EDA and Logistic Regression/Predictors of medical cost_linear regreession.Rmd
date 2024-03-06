@@ -1,0 +1,629 @@
+---
+title: 'Project: Predictors of medical cost billed by Health insurance in the United States (EDA, Descriptive analysis and linear regression)'
+author: "Olasho"
+date: "2023-09-17"
+output: 
+  html_document: 
+    toc: yes
+    highlight: zenburn
+    theme: cerulean
+    number_sections: yes
+---
+
+# Predictors of medical cost billed by health insurance
+
+In this analysis, I explored the factors that influenced the individual medical costs billed by health insurance in the United States. The factors investigated for their influence on medical costs included the age of the primary beneficiary, sex of the contractor, smoking status of the beneficiary, body mass index (BMI) of the beneficiary, region (the beneficiary's residential area in the US), and number of children covered by health insurance.
+
+To begin, I conducted descriptive statistics and exploratory data analysis (EDA) on these factors, providing a comprehensive overview of their distribution and characteristics. Following this, I used a multivariate linear regression model to ascertain which factors exerted a discernible influence on the charges billed by the health insurance.
+
+The underlying assumptions of the linear regression model were also assessed. A component partial residual plot was used to evaluate the linearity of the model, while the variance inflation factor (VIF) was utilized to assess the collinearity among predictor variables. Additionally, Cook's distance was used to identify influential observations, normality and equality of variance were examined to evaluate the model's fit, and potential outliers were scrutinized. 
+
+This project was conducted using R markdown in R Studio and included a multifaceted approach. It involved data cleaning, the identification of missing values, the conversion of variables where necessary, extensive data analysis, data visualization, and the creation of a comprehensive and detailed report on the findings. The codes used were also reported. The project was reported in the following steps accordingly;
+
+1.    Code used to execute the analysis.
+2.    Output for the code executed.
+3.    Interpretation of the results gotten.
+
+# Setting the Chunk options
+
+First, the options of interest on the output of all the chunks was set.
+
+```{r}
+knitr::opts_chunk$set(comment = "--", warning = FALSE)
+```
+
+
+# Importation of the data and propeerties of the variables in the data
+```{r summary statistics}
+## First the working directory was set
+
+setwd("/Users/olasho/Desktop/R language2/Regression with R ")
+getwd()
+
+## The dataset was imported into the Rstudio
+
+medical_cost <- read.csv("medical_cost.csv", header = TRUE, sep = "," )
+
+## Next, the characteristics of the variables were determined
+
+str(list(medical_cost))
+
+## Next, the the categorical variables of smoker, region, and sex were factored
+
+medical_cost$sex <- factor(medical_cost$sex)
+```
+
+# Descriptive analysis
+
+Here, the descripitve statistics of the variables (age, sex, bmi, number of children, smoking status and region) were explored by observing their mean, frequency distribution, minimum and maximum values, and percentiles.
+
+```{r descriptive statistics}
+library(Hmisc)
+describe(medical_cost)
+```
+
+From the output above, The dataset under consideration comprises a total of 1,338 participants. It's worth noting that all the variables are complete, with no missing values. Delving into the age distribution, it can be observed that the ages of participants span a considerable range, starting from a minimum of 18 years and reaching as high as 64 years. The average age of the beneficiaries is approximately 39 years.
+
+When examining the gender distribution, a near-even split can be observed, with 662 female participants and 676 male participants. Males slightly outnumber females in this survey.
+
+Turning attention to Body Mass Index (BMI), the average BMI among the participants stands at approximately 30.7. This value places the average bmi of the beneficiaries in the overweight category. BMI values in the data set exhibit notable variation, ranging from the lowest recorded value of 16 to a substantial high of 53.13.
+
+The data set also reveals insights into the smoking habits of participants. Specifically, 274 individuals in the survey are identified as smokers, whereas the majority (1,064) of the participants do not smoke.
+
+Geographically, the data set covers multiple regions in the United States. Among these regions, the southeast stands out with the highest representation, boasting 364 participants. Meanwhile, both the northwest and southwest regions each feature an identical count of 325 participants. The northeast region closely follows with 324 participants.
+
+Lastly, in terms of medical charges billed by the health insurance, the average individual medical cost is approximately $13,270. Medical costs charged by the insurance across participants exhibit substantial variability, with charges ranging from a minimum of $1,122 to a maximum of $63,770.
+
+# Exploratory data analysis (EDA) and statistical testing
+
+## Exploring charges
+
+```{r EDA charges}
+# Graphical representation of charges
+
+library(tidyverse)
+
+## Histogram;
+
+ggplot(data = medical_cost, aes(x = charges, color = "red")) +
+  geom_histogram(binwidth = 1000) +
+  labs(title = "histogram of charges", x = "charges") +
+  scale_y_continuous(breaks = seq(from = 0, to = 200, by = 20)) +
+  scale_x_continuous(breaks = seq(from = 0, to = 60000, by = 5000)) +
+  coord_cartesian(ylim = c(0, 140))
+
+## Boxplot;
+ggplot(data = medical_cost, aes(x = charges, color = "red")) +
+  geom_boxplot() +
+  labs(title = "barchart of charges", x = "charges") +
+  coord_flip()
+```
+
+From both the bar chart and the boxplot, it's evident that the distribution of charges is skewed to the right. The majority of the data points are concentrated on the lower end of the charge scale, with a long tail extending towards the higher charges. This right skewness is further confirmed by the presence of upper outliers in the boxplot, indicating that there are some exceptionally high charge values that contribute to the skewness of the distribution.
+
+Conclusively, the right-skewed distribution of charges suggests that a significant portion of the beneficiaries incurred relatively lower medical charges, while a smaller but notable proportion had substantially higher charges. 
+
+## Exploring region
+
+```{r EDA region}
+library(RColorBrewer)
+
+# Calculating the frequencies of each region
+
+medcost_region <- table(medical_cost$region)
+medcost_region
+# Finding the region(s) with the highest and lowest frequencies
+
+max_medcost_region <- max(medcost_region)
+min_medcost_region <- min(medcost_region)
+
+
+# Creating a bar chart with custom colors for the highest and lowest frequency bars
+ggplot(data = medical_cost, aes(x = region)) +
+  geom_bar(fill = brewer.pal(4, "OrRd")) +
+  labs(title = "Bar chart of region", x = "Region") +
+  scale_y_continuous(breaks = seq(from = 0, to = 400, by = 40))
+```
+
+As shown in both the bar chart and the table, the survey recorded the highest participation from beneficiaries residing in the southwest region, with a total of 364 individuals taking part in the study. This suggests that the southwest region had the largest representation among the surveyed beneficiaries. 
+
+## Exploring region by medical charges billed by health insurance
+
+```{r region by medical cost}
+## Using table to view the average charges by region
+
+mean_medcost_reg_charges <- aggregate(charges~region, data = medical_cost, FUN = mean, na.rm = TRUE)
+mean_medcost_reg_charges
+
+## Creating a bar chart of average medical cost by region
+ggplot() +
+  geom_col(data = mean_medcost_reg_charges, aes(x = region, y = charges, fill = region)) +
+  labs(title = "Average medical charges by region", x = "region", y = "Average medical charges") +
+  coord_cartesian(ylim =c(10000, 16000)) +
+  scale_y_continuous(breaks = seq(from = 10000, by = 500, to = 16000)) +
+    scale_fill_manual(name = "Region", values = brewer.pal(4, "PiYG"))
+```
+   
+As can be observed from the table and the bar chart, the analysis reveals that beneficiaries residing in the southeast region had the highest average medical costs billed by health insurance in the United States, totaling $14,735. Following closely were participants from the northeast region, with an average cost of $13,406. In contrast, the southwest region exhibited the lowest average medical costs billed by health insurance, amounting to $12,346.
+
+```{r line histogram}
+## Observing the histogram of charges by each region
+
+ggplot(data = medical_cost, aes(x = charges, color = region)) +
+  geom_freqpoly() +
+  scale_x_continuous(breaks = seq(from = 0, by = 5000, to = 70000))
+```
+
+As observed in the line histogram, the distribution of medical charges billed by the insurance is clearly right-skewed, deviating from the characteristics of a normal distribution. The histogram shows that the majority of participants incurred medical costs within the range of $3,000 to $15,000, indicating a concentration of observations in this specific range. This skewed distribution suggests that a significant portion of the beneficiaries had relatively lower medical charges, while fewer participants had exceptionally high medical costs.
+
+```{r boxplot}
+## Box plot of charges by region
+
+ggplot(data = medical_cost, aes(x = reorder(region, charges), y = charges)) +
+  geom_boxplot(color = brewer.pal(4, "Reds"), fill = brewer.pal(4, "YlOrRd")) +
+  scale_y_continuous(breaks = seq(from = 0, by = 5000, to = 70000)) +
+  labs(title = "medical cost billed by the health insurance by region", x = "charges")
+```
+
+### Statistical testing usnig Kruskal-wallis test to explore the relationship between region and medical cost
+
+With the assumption of normality not met for the charges across different regions, the Kruskal-Wallis test was used as an alternative to explore the relationship between region and medical charges. This test helped to determine if there was any statistically significant differences in medical charges among the different regions without relying on the normality assumption.The alpha level was set at p < 0.05.
+
+```{r kruskal-Wallis}
+## kruskal-Wallis;
+
+charges_reg_kruswal <-kruskal.test(charges~region, data = medical_cost)
+
+print(charges_reg_kruswal)
+
+```
+
+As observed from the p-value of 0.1923 above, which is greater than the conventional significance level of 0.05, we do not have enough evidence to reject the null hypothesis. This suggests that there is no statistically significant relationship between the region and medical charges.
+
+## Exploring Gender
+
+```{r Frequency gender}
+# Calculating the frequencies of each region
+
+medcost_sex <- table(medical_cost$sex)
+medcost_sex
+```
+
+```{r bar chart gender}
+# Creating a bar chart with custom colors for the highest and lowest frequency bars
+ggplot(data = medical_cost, aes(x = sex)) +
+  geom_bar(aes(fill = sex), binwidth = 0.1) +
+  labs(title = "Bar chart of gender", x = "gender") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1000, by = 50))
+```
+
+As evident from both the bar chart and the table, the survey saw nearly equal participation from male and female beneficiaries, with 676 males and 662 females taking an active part in the study. While the male participation slightly outnumbered the female participation, the difference is relatively small, indicating a nearly balanced gender representation among the survey participants.
+
+## Exploring gender by chargres billed by the health insurance
+
+```{r mean charges by gender}
+## Using table to view the average charges by region
+
+mean_medcost_gen_charges <- aggregate(charges~sex, data = medical_cost, FUN = mean, na.rm = TRUE)
+mean_medcost_gen_charges
+```
+
+As evident from the table, the analysis highlights a notable difference in the average medical costs billed by health insurance between male and female beneficiaries in the United States. Specifically, male beneficiaries incurred a higher average medical cost, approximately $13,956, compared to their female counterparts, whose average cost was approximately $12,570. This disparity suggests that, on average, male beneficiaries tend to have higher medical expenses covered by health insurance in this study population.
+
+```{r line histogram of charges by gender}
+## Observing the histogram of charges by each gender
+
+ggplot(data = medical_cost, aes(x = charges, color = sex)) +
+  geom_freqpoly() +
+  scale_x_continuous(breaks = seq(from = 0, by = 5000, to = 70000))
+```
+
+As evident from the line histogram, the distribution of medical charges billed by the insurance for both genders is characterized by a clear right-skewed pattern. This right-skewed distribution, displayed in the histogram, deviates from the typical bell-shaped curve of a normal distribution. It indicates that the majority of both male and female beneficiaries incurred medical charges that are concentrated in the lower range and that there are fewer beneficiaries with substantially higher medical costs. This skewness suggests that the data does not conform to the assumptions of a normal distribution and should be considered in subsequent statistical analyses or modeling.
+
+```{r}
+## Box plot of charges by region
+
+ggplot(data = medical_cost, aes(x = reorder(sex, charges), y = charges)) +
+  geom_boxplot(aes(fill = sex)) +
+  scale_y_continuous(breaks = seq(from = 0, by = 5000, to = 70000)) +
+  labs(title = "medical cost billed by the health insurance by gender", x = "charges") +
+  scale_fill_brewer(palette = "RdPu")
+```
+
+### Statistical testing using Mann-Whitney U test to explore the relationship between region and medical cost
+
+With the assumption of normality not met for the charges by gender, the Man-Whitney U test was used as an alternative to explore the relationship between gender and medical charges. This test helped to determine if there was any statistically significant differences in medical charges by gender without relying on the normality assumption.The alpha level was set at p < 0.05.
+
+```{r Mann-Whitney U test}
+# Performing Mann-Whitney U test
+
+charges_gen_wilcox <- wilcox.test(charges~sex, data = medical_cost)
+
+print(charges_gen_wilcox)
+```
+
+As observed from the p-value of 0.7287, which is greater than the significance level of 0.05, there is insufficient evidence to reject the null hypothesis. This indicates that, based on the statistical analysis, there is no statistically significant relationship between the region and gender variables in the dataset. In other words, the region and gender appear to be independent of each other, and any observed patterns or differences in the data related to these variables are not statistically significant at the chosen significance level of p < 0.05.
+
+## Exploring smoking status
+
+```{r}
+# Calculating the frequencies 
+
+medcost_smoke <- table(medical_cost$smoker)
+medcost_smoke
+```
+
+```{r Feq smoking status}
+# Creating a bar chart with custom colors for the highest and lowest frequency bars
+ggplot(data = medical_cost, aes(x = smoker)) +
+  geom_bar(aes(fill = smoker), binwidth = 0.1) +
+  labs(title = "Bar chart of smoking status", x = "smoking status") +
+  scale_y_continuous(breaks = seq(from = 0, to = 1500, by = 100))
+```
+
+As illustrated in both the bar chart and table, the majority of beneficiaries, totaling 1,064 individuals, are non-smokers, while a smaller subset of 274 beneficiaries are smokers.
+
+## Exploring smoking status by chargres billed by the health insurance
+
+```{r}
+## Using table to view the average charges by region
+
+smoker_charges <- aggregate(charges~smoker, data = medical_cost, FUN = mean, na.rm = TRUE)
+smoker_charges
+```
+
+The table above reveals a significant disparity in average medical costs billed by the insurance company. Smokers incur substantially higher average costs, with an average of $32,050, compared to non-smokers who have considerably lower average costs, totaling $8,434.
+
+```{r histogram smokers}
+## Observing the line histogram of charges by smoking status
+
+ggplot(data = medical_cost, aes(x = charges, color = smoker)) +
+  geom_freqpoly() +
+  scale_x_continuous(breaks = seq(from = 0, by = 5000, to = 70000))
+```
+
+The line histogram for non-smokers prominently exhibits a higher peak, indicating a greater number of non-smokers in the survey compared to smokers. The histogram for non-smokers appears to have a slight right-skewness, but overall, it approximates a somewhat normal distribution.
+
+In contrast, the histogram for smokers is intriguing, displaying two distinct peaks, which suggests a bimodal distribution. This bimodality indicates the presence of two separate patterns within the data, making it distinct from a normally distributed curve.
+
+Below, the Shapiro-Wilk test was used to further assess the normality.
+
+```{r Shapiro-wilk test}
+## Shapiro-Wilk test for non-smokers
+
+charges_nonsmoker_shapiro <- shapiro.test(medical_cost$charges[medical_cost$smoker == "no"])
+
+charges_nonsmoker_shapiro
+
+## Shapiro-Wilk test for smokers
+
+charges_smoker_shapiro <- shapiro.test(medical_cost$charges[medical_cost$smoker == "yes"])
+
+charges_smoker_shapiro
+```
+
+With Both p-values significantly less than 0.0001, it can be concluded that the charges for both smokers and nonsmokers significantly deviate from a normal distribution.
+
+```{r boxplot smoking status}
+## Box plot of charges by smoking status
+
+ggplot(data = medical_cost, aes(x = reorder(smoker, charges), y = charges)) +
+  geom_boxplot(aes(fill = smoker)) +
+  scale_y_continuous(breaks = seq(from = 0, by = 5000, to = 70000)) +
+  labs(title = "medical cost billed by the health insurance by smoking statusr", x = "charges") +
+  scale_fill_brewer(palette = "BuPu")
+```
+
+### Statistical testing using Mann-Whitney U test to explore the relationship between region and medical cost
+
+Given that the assumption of normality was not met for the charges based on smoking status, an alternative statistical test, the Mann-Whitney U test, was employed to investigate the potential relationship between smoking status and medical charges.
+
+```{r}
+# Performing Mann-Whitney U test
+
+charges_smoker_wilcox <- wilcox.test(charges~smoker, data = medical_cost)
+
+print(charges_smoker_wilcox)
+```
+
+The small p-value (p < 0.0001) indicates a highly significant difference in medical charges between smokers and non-smokers. Non-smokers are charged significantly less for medical services by the health insurance.
+
+## Exploring BMI
+
+```{r descriptive bmi}
+# Getting the summary statistics of BMI
+
+summary(medical_cost$bmi)
+
+# Creating a histogram and box plot for BMI
+
+med_bmi_hist <- ggplot() +
+  geom_histogram(data = medical_cost, mapping = aes(x = bmi), fill = "BLue", color = "black") 
+
+med_bmi_box <- ggplot() +
+  geom_boxplot(data = medical_cost, mapping = aes(x = bmi), fill = "red") +
+  coord_flip()
+
+## plotting the graphs side by side
+
+library(gridExtra)
+ grid.arrange(med_bmi_hist, med_bmi_box, ncol = 2) 
+```
+
+The analysis reveals that the mean BMI (Body Mass Index) among the beneficiaries stands at 30.66. This average BMI falls within the 'over weight' category, indicating that, on average, the beneficiaries have a higher body weight relative to their height.
+
+The dataset exhibits a range of BMI values, with the maximum recorded BMI being 53.13 and the minimum BMI at 15.96. This wide range suggests significant variability in body weight among the beneficiaries.
+
+Visual examination of the histogram shows that the distribution of BMI values approximately follows a normal distribution curve. This suggests that, overall, the BMI data has a symmetrical distribution with a central tendency.
+
+However, the boxplot reveals that while the majority of BMI values are evenly distributed, there are a few outliers to the right side of the distribution. These outliers represent individuals with exceptionally high BMIs compared to the majority of the group, indicating some degree of variability within the dataset.
+
+## Exploring BMI by charges billed by the health insurance
+### Correlation between BMI and charges billed by the health insurance
+
+In this analysis, the aim was to explore the correlation between BMI and the charges billed by health insurance. To assess this relationship, Spearman's rank correlation coefficient and a scatter plot was used. The choice of Spearman's correlation was driven by the observation that the distribution of charges billed by health insurance is not normally distributed. Unlike Pearson correlation, Spearman correlation does not assume normality for either variable, making it a suitable choice for this non-normally distributed data.
+
+```{r correlation charges_bmi}
+# Correlation test;
+
+cor.test(x = medical_cost$bmi, y = medical_cost$charges, method = "spearman", use = "complete.obs")
+```
+
+The analysis reveals a positive correlation of 0.12 between BMI (Body Mass Index) and the charges billed by the medical insurance. This correlation indicates that as BMI increases, there is a tendency for medical charges to increase, albeit the relationship is relatively weak in magnitude.
+
+The extremely low p-value of less than 0.0001 signifies that this correlation is highly statistically significant. In simpler terms, it's highly unlikely that the observed association between BMI and medical charges occurred by random chance.
+
+However, it's important to understand the practical significance of this correlation. A correlation of 0.12 suggests that while there is a discernible connection, it's not particularly strong. There are other factors likely contributing to the variation in medical charges, and BMI alone does not account for a substantial portion of these differences. 
+
+```{r scatterplot charges_bmi}
+# Scatter plot;
+
+ggplot(data = medical_cost, aes(bmi, charges)) +
+  geom_point(aes (color = "red")) +
+  labs(title = "Scatterplot of charges and BMI", x = "BMI", y = "Charges") +
+  annotate("text", x = 5, y = 60000, label = paste("cor=", round(cor(medical_cost$bmi,medical_cost$charges, method = "spearman", use = "complete.obs"), 2), sep = " "), angle = 45, fontface = "bold", color = "blue") +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_x_continuous(breaks = seq(from = 10, by = 10, to = 60)) +
+  scale_fill_manual(name = FALSE, values = FALSE)
+```
+
+The scatterplot indicated a more scattered distribution of points but still with a general upward trend. While there's a positive relationship, it's not as pronounced, and there's more variability in the data.
+
+## Exploring number of children
+
+```{r}
+# Calculating the frequency of children
+
+table(medical_cost$children)
+```
+
+```{r barchart_children}
+# First, the number of children was converted from a numeric variable to a character variable
+
+medical_cost$children <- as.character(medical_cost$children)
+
+# Creating a bar chart with custom colors for the highest and lowest frequency bars
+
+ggplot(data = medical_cost, aes(x = children)) +
+  geom_bar(aes(fill = children), binwidth = 0.1) +
+  labs(title = "Bar chart of number of children", x = "children") +
+  scale_y_continuous(breaks = seq(from = 0, to = 600, by = 50))
+```
+
+In the analysis of the dataset, a breakdown of beneficiaries based on the number of children they have was observed from the barchart and table output:
+
+No Children (574 beneficiaries): This category represents the largest group among the beneficiaries, consisting of 574 individuals. These participants reported having no dependent children covered by their health insurance. It's worth noting that this group constitutes a significant portion of the surveyed population.
+
+One Child (324 participants): The dataset includes 324 participants who reported having one child. These beneficiaries have a single dependent child as part of their insurance coverage. This group is notable for its size and represents a substantial portion of the surveyed individuals.
+
+Two Children (240 beneficiaries): Among the surveyed beneficiaries, 240 individuals indicated that they have two children. This group represents a somewhat smaller but still significant portion of the population. These beneficiaries have two dependent children included in their health insurance coverage.
+
+Three Children (157 beneficiaries): A group of 157 beneficiaries reported having three children. This category signifies a subset of individuals with a relatively larger number of dependent children under their insurance coverage.
+
+Four Children (25 beneficiaries): In the dataset, there are 25 beneficiaries who stated that they have four children. This group represents a smaller proportion of the surveyed individuals and indicates a further subset with a higher number of dependent children.
+
+Five Children (18 beneficiaries): Lastly, 18 beneficiaries reported having five children. This category is relatively smaller in size and signifies a subset of participants with a larger number of dependent children covered by their health insurance.
+
+## Exploring number of children by charges billed by the health insurance
+
+```{r}
+## Using table to view the average charges by number of children
+
+children_charges <- aggregate(charges~children, data = medical_cost, FUN = mean, na.rm = TRUE)
+children_charges
+```
+
+On average, beneficiaries with no children were billed approximately $12,365 by the health insurance company. This group represents individuals without dependent children. The charges for this group fall within this range, indicating a relatively moderate average cost. Those with one child, on the other hand, faced slightly higher average charges, totaling around $12,731. This suggests that having one dependent child is associated with a slightly increased cost compared to those with no children.
+
+The average charges for beneficiaries with two children notably increased to approximately $15,073. This group, with two dependent children, incurred a higher average cost compared to the previous categories. This increase could be attributed to the added healthcare needs of multiple dependents. A similar trend continues for those with three children, with an average charge of approximately $15,355. This indicates a slight increase in charges for individuals with three dependent children, potentially reflecting the greater healthcare expenses associated with a larger family.
+
+Interestingly, the average charges for beneficiaries with four children amounted to around $13,850. This figure is somewhat lower than that for individuals with three children, suggesting a potential variation in healthcare costs among different family sizes. The group with five children stands out as having the lowest average charges, approximately $8,786. This is a noteworthy deviation from the general trend, as it implies that, on average, those with five children incurred lower healthcare costs compared to those with fewer children.
+
+```{r}
+# Observing the line histogram of charges by number of children status
+
+ggplot(data = medical_cost, aes(x = charges, color = children)) +
+  geom_freqpoly() +
+  scale_x_continuous(breaks = seq(from = 0, by = 5000, to = 70000))
+
+```
+
+As anticipated, beneficiaries without any dependent children, constituting a substantial portion of the surveyed population, displayed their highest frequency of charges at approximately $2,500. This peak in frequency indicates that a significant number of individuals in this group experienced healthcare charges clustered around this particular cost. It suggests that, on average, beneficiaries without children encountered relatively lower healthcare expenses, with $2,500 serving as a common point of reference. Similarly, beneficiaries with a single child, as depicted in the histogram, also had their highest frequency of charges close to the $2,500 mark. This observation aligns with the trend seen in the 'no children' category, indicating that healthcare charges for individuals with one child also tend to cluster around this cost point. Moving on to beneficiaries with two children, we once again note that their highest frequency of charges was concentrated around approximately $2,500. This implies that a substantial proportion of individuals in this group experienced healthcare costs centered at this value. 
+
+It's worth acknowledging that the presence of dependent children, even up to two, did not significantly shift the distribution of charges from this common point. Akin to the previous categories, beneficiaries with three children exhibited their highest frequency of charges at approximately $2,500. This consistency in the distribution suggests that even with a larger family size, many individuals within this group encountered healthcare expenses clustered around this particular amount. These observations underscore an intriguing trend in the distribution of charges. Regardless of family size, beneficiaries frequently found themselves facing healthcare costs concentrated near the $2,500 range. This suggests that this particular charge level may be a common experience among various family compositions.
+
+However, while this pattern is evident, it's essential to recognize that this interpretation is based on a specific charge point and may not capture the full range of healthcare costs experienced by each group. Variability in charges within each category, as well as individual circumstances and healthcare needs, can influence the distribution. Therefore, while the $2,500 charge point is a prominent feature, it represents one aspect of the broader landscape of healthcare expenses within each family size group. Also, none of the line graphs are normally distributed.
+
+```{r}
+# Box plot of charges by smoking status
+
+ggplot(data = medical_cost, aes(x = reorder(children, charges), y = charges)) +
+  geom_boxplot(aes(fill = children)) +
+  scale_y_continuous(breaks = seq(from = 0, by = 5000, to = 70000)) +
+  labs(title = "medical cost billed by the health insurance by number of children", x = "charges") +
+  scale_fill_brewer(palette = "BuPu")
+```
+
+### Statistical testing using Kruskal-wallis test to explore the relationship between region and medical cost
+
+With the assumption of normality not met for the charges by number of children, the Kruskal-wallis test was used as an alternative to explore the relationship between smoking status and medical charges.
+
+```{r}
+# Performing Kruskal-wallis test;
+
+charges_children_kruskal <-kruskal.test(charges~children, data = medical_cost)
+
+print(charges_children_kruskal)
+```
+
+The low p-value of 1.86e-05 indicates that the relationship between the number of children and healthcare charges is statistically significant. 
+
+# Multivaraite analysis (Multiple linear regression).
+
+After carefully examining the individual relationships between various factors and the medical charges billed by health insurance in the United States, it becomes evident that a more comprehensive approach is necessary. It is imperative to construct a predictive model that not only analyzes but also forecasts the intricate relationship between these factors and the medical charges. This multivariate analysis aims to consider the collective impact of all factors while adjusting for each one.
+
+The rationale for building this model is reinforced by several key observations. First, some intriguing anomalies have emerged from the initial analysis. For instance, there is a seemingly weak correlation, yet a statistically significant relationship between BMI and medical charges. Additionally, there is a notable sudden drop in average charges billed to beneficiaries with four and five children, an observation that warrants closer investigation.
+
+Incorporating all factors into the regression model, even those with seemingly weaker relationships, was a deliberate choice as it allowed for the account of the complex, multifaceted nature of healthcare charges bolled by the health insurance. While some factors may exhibit stronger individual associations with charges, others may have subtler, yet still meaningful, effects that only become apparent when considered in conjunction with other variables.
+
+In essence, this multiple linear regression analysis sought to uncover the interactions among the factors and their combined influence on medical charges. By doing so, the aim was to create a more holistic understanding of what drives healthcare costs, encompassing both the prominent and subtle determinants. This comprehensive model provided a valuable tool for predicting medical charges billed by the health insurance while considering the full spectrum of contributing factors, ultimately enhancing the ability to make informed decisions and allocate resources effectively in the realm of healthcare.
+
+## Multiple linear regression
+
+```{r regression model charges}
+# Fitting a model for charges and all the factors;
+
+medical_cost_regress <- lm(charges~bmi + children + sex + smoker + region, data = medical_cost)
+summary(medical_cost_regress)
+
+# Getting the confidence interval (CI) of the estimates
+
+medical_cost_regressCI <- confint(medical_cost_regress)
+print(medical_cost_regressCI)
+```
+
+For every one-unit increase in BMI, the estimated increase in medical charges billed by the health insurance was approximately $408 with a confidence interval (CI) observed to be as low as $343 and as high as $473. This difference is highly significant (p < 0.001), indicating that BMI has a strong positive association with the medical charges billed by the health insurance. As BMI increases, medical charges tend to increase as well.
+
+The estimated increase in medical charges for individuals with one child compared with individuals with no children was approximately $652 with an estimated CI between -$307 and $1,612. This estimate is statistically significant (p = 0.183), suggesting that having one child compared to no children may not significantly impact medical charges billed by the health insurance.
+
+The estimated increase in medical charges for individuals with two children compared to individuals with no children was approximately $1873 with an estimated CI between $809 and $2,937. This estimate is highly significant (p < 0.001), indicating that having two children compared to having no children was associated with higher medical charges billed by the health insurance.
+
+The estimated increase in medical charges for individuals with three children compared to individuals with no children was approximately $1,756 with an estimated CI between $509 and $3,002. This estimate is statistically significant (p = 0.006), suggesting that having three children compared to no children was associated with higher medical charges billed by the health insurance.
+
+'children4' (2999.82): The estimated increase in medical charges for individuals with four children compared to individuals with no children was approximately $3,000 with a CI between $174 and $5,825. This estimate is significant (p = 0.037), indicating that having four children compared to no children may lead to higher medical charges billed by the health insurance.
+
+'children5' (454.70): The estimated increase in medical charges for individuals with five children was approximately $454 with a CI between -$2,864 and $3,773. This estimate is not statistically significant (p = 0.788), suggesting that having five children compared to no children may not significantly impact medical charges billed by the health insurance.
+
+The coefficient for gender (male) suggests that, on average, males have medical charges that are approximately -$302 lower than females with a CI between -$1,061.11 and $456.12. This difference is not statistically significant (p = 0.434). Therefore, gender may not be a significant predictor of medical charges billed by the insurance in this model.
+
+smoker yes (23615.26): The coefficient for smoking status indicates that smokers, on average, have medical charges that are approximately $23,615  higher than non-smokers with a CI between $22,671.34 and $24,559.17. This difference is highly significant (p < 0.001), indicating that smoking status is strongly associated with higher medical charges.
+
+The coefficient for the northwest region suggests that, on average, individuals in the northwest region have medical charges billed by the insurance that are approximately -$437 lower than those in the northeast region with a CI between -$1,523.37 and $649.62. This difference is not statistically significant (p = 0.430).
+
+'southeast' (-1391.19): The coefficient for the southeast region suggests that, on average, individuals in the southeast region have medical charges that are approximately -$1391  lower than those in the northeast region with a CI between -$2,482.93 and -$299.45. This difference is statistically significant (p = 0.013), indicating that the southeast region has lower medical charges.
+
+The coefficient for the southwest region suggests that, on average, individuals in the southwest region have medical charges billed by the insurance that are approximately -$1,002 lower than those in the northeast region with a CI between -$2,092 and $87. This difference is not significant (p = 0.071).
+
+In conclusion, this analysis highlights several factors influencing medical charges billed by health insurance in the United States. BMI and smoking status are the most significant predictors, indicating that healthier lifestyles may result in lower medical costs billed by the health insurance. The number of children and region of residence also play roles, although the impact varies. Gender, on the other hand, does not seem to be a significant determinant of medical charges billed by the health insurance in this data set. Overall, understanding these factors can help individuals and healthcare providers understands what contributes to higher charges billed by health insurance in the united States.
+
+The adjusted R-squared value of 0.6619 indicates that approximately 66.19% of the variation in medical charges is explained by the combination of predictor variables in the model. This suggests that the model provides a reasonably good fit to the data and can explain a significant portion of the variation in medical charges. However, the fit of the model will further be assessed by checking for collinearity, the linearity, normality outliers of the model and also checking if there are observations that are highly influencial on the model using the cook's distance.
+
+## Checking for multicollinearity
+
+```{r assessing collinearity}
+# collinearity;
+
+library(car)
+
+medical_cost_VIF <- car::vif(medical_cost_regress)
+print(medical_cost_VIF)
+```
+
+The VIF for 'bmi' is 1.094, which is slightly above 1. This suggests that 'bmi' has a moderate level of multicollinearity with the other predictor variables. However, it's not a severe concern.
+
+The VIF for 'children' is 1.019, which is very close to 1. This indicates that 'children' has a low level of multicollinearity with the other predictor variables. There is minimal concern regarding multicollinearity.
+
+The VIF for 'sex' is 1.009, which is close to 1. This suggests that 'sex' has a very low level of multicollinearity with the other predictor variables. Multicollinearity is not a concern for 'sex.'
+
+The VIF for 'smoker' is 1.017, which is slightly above 1. This indicates that 'smoker' has a moderate level of multicollinearity with the other predictor variables. However, it's not a severe concern.
+
+The VIF for 'region' is 1.108, which is slightly above 1. This suggests that 'region' has a moderate level of multicollinearity with the other predictor variables. However, it's not a severe concern.
+
+In summary, the VIF values for most predictor variables are close to 1, indicating that multicollinearity is generally not a significant issue in the model. While 'bmi,' 'smoker,' and 'region' show slightly higher VIF values, they are still within an acceptable range, suggesting that multicollinearity is not severe enough to warrant major concern. 
+
+## Checking for assumptions and fit of the linear model
+
+```{r linear assumption fit}
+## first, creating residuals
+
+medical_cost_residuals <- residuals(medical_cost_regress)
+
+## Create fitted values
+
+medical_cost_fit <- fitted.values(medical_cost_regress)
+
+## Create cooks distance
+
+medical_cost_cooks <- cooks.distance(model = medical_cost_regress)
+
+## Create a data frame for plotting
+
+medicalcost_assumption_dataframe <- data.frame(id_number = c(1:1338), bmi = medical_cost$bmi, medical_cost_residuals = medical_cost_residuals, medical_cost_fit = medical_cost_fit, medical_cost_cooks <- medical_cost_cooks)
+
+## PLOT 1; linearity
+
+medical_cost_linearity <- ggplot(data = medicalcost_assumption_dataframe, aes(x = bmi, y = medical_cost_residuals)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "loess", se = FALSE, color = "red") +
+  labs(title = "linearity plot", y = "residuals", x = "bmi") +
+  geom_smooth(method = "lm", se = FALSE, color = "yellow", linetype = "dashed") 
+
+## Plot 2;homoscedasticity
+
+medical_cost_equalvar <- ggplot(data = medicalcost_assumption_dataframe, aes(x = medical_cost_fit, y = medical_cost_residuals)) +
+  geom_point( color = "blue") +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "homoscedasticity plot", y = "residuals", x = "predicted value") 
+
+## Plot 3; normality of residuals (qqplot)
+
+medical_cost_normality <- ggplot(data = medicalcost_assumption_dataframe, aes(sample = medical_cost_residuals)) +
+  geom_qq(color = "blue") +
+  geom_qq_line(color = "red") +
+  labs(title = "Normality of resduals (qq plot)", x = "expected", y = "observed")
+
+## Plot 4; normality of residuals (histogram)
+
+medical_cost_normality_hist <- ggplot() +
+  geom_histogram(data = medicalcost_assumption_dataframe, mapping = aes(x = medical_cost_residuals), fill = "blue", color = "black") +
+  labs(title = "normality of residuals (histogram)", x = "residuals")
+
+
+## Plot 4; cooks distance (influential observations)
+
+medical_cost_infleunce <- ggplot(medicalcost_assumption_dataframe, aes(x = id_number, y = medical_cost_cooks)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = 0.04, color = "red", linetype = "dashed") +
+  labs(title = "Cook's Distance Plot", x = "id_number", y = "cooks distance") 
+
+## Finally plot the graphs side by side
+
+library(gridExtra)
+ grid.arrange(medical_cost_normality, medical_cost_normality_hist, medical_cost_equalvar, medical_cost_linearity, medical_cost_infleunce, ncol = 2) 
+```
+
+Based on the analysis of the model's residuals and diagnostic plots, several observations can be made:
+
+Normality of Residuals:
+The Q-Q plot and histogram of residuals suggest that they approximately follow a normal distribution. However, there are slight deviations at both tails, indicating some departures from perfect normality. Overall, the residuals appear to be reasonably normally distributed.
+
+Homoscedasticity (Equal Variance):
+The observations exhibit approximately equal variance, suggesting that the assumption of homoscedasticity holds. This means that the spread of residuals is relatively consistent across different levels of predictor variables.
+
+Linearity of the Model:
+The relationship between the residuals and the BMI predictor variable appears to be approximately linear. The red loess line closely approximates a linear trend, with only a slight deviation observed at the end of the line. This suggests that the linear regression model is a reasonable fit for the data.
+
+Influence of Observations (Cook's Distance):
+Cook's distance is a measure of the influence of individual data points on the model. In this case, only one observation is seen to have a Cook's distance above the limit, indicating that it may have a somewhat influential effect on the model's parameters. Further investigation into this specific data point may be warranted to assess its impact on the overall model.
+
+In summary, while there are minor deviations from perfect normality and a single influential observation, the diagnostic plots indicate that the linear regression model appears to be reasonably appropriate for the data. The assumptions of normality, homoscedasticity, and linearity are generally met, and the model provides a reasonable representation of the relationship between the factors and the medical charges billed by the insurance.
